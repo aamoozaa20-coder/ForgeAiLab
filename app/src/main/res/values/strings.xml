@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">FORGE AI LAB</string>
+    <string name="app_subtitle">سامانه هوشمند تحلیل و مهندسی نرم‌افزار اندروید</string>
+    <string name="nav_dashboard">داشبورد</string>
+    <string name="nav_analysis">تحلیل بسته</string>
+    <string name="nav_resources">منابع</string>
+    <string name="nav_studio">استودیو</string>
+    <string name="nav_components">اجزاء</string>
+    <string name="nav_ai">دستیار AI</string>
+    <string name="nav_rebuild">بازسازی</string>
+    <string name="nav_sign">امضا و نصب</string>
+    <string name="nav_projects">پروژه‌ها</string>
+    <string name="nav_reports">گزارش‌ها</string>
+    <string name="nav_settings">تنظیمات</string>
+    <string name="select_apk">انتخاب فایل APK</string>
+    <string name="analyze">تحلیل</string>
+    <string name="no_project">هنوز پروژه‌ای باز نشده است</string>
+    <string name="loading">در حال پردازش…</string>
+    <string name="error_generic">خطایی رخ داد</string>
+    <string name="ai_hint">درخواست خود را به فارسی بنویسید…</string>
+    <string name="api_key_hint">کلید Gemini API</string>
+    <string name="save">ذخیره</string>
+    <string name="cancel">انصراف</string>
+    <string name="confirm">تأیید</string>
+    <string name="permission_required">مجوز دسترسی به فایل لازم است</string>
+</resources>
