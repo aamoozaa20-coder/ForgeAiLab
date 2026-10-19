@@ -28,21 +28,18 @@ class AiAgent(
         append(AiRole.USER, userText)
         val info = workspace.current.value?.apkInfo
 
-        // 1) Real tool commands (always preferred)
         val toolReply = runTools(userText, info)
         if (toolReply != null) {
             append(AiRole.ASSISTANT, toolReply)
             return toolReply
         }
 
-        // 2) Offline Q&A
         val offline = tryOffline(userText, info)
         if (offline != null) {
             append(AiRole.ASSISTANT, offline)
             return offline
         }
 
-        // 3) Gemini free-form
         val context = buildString {
             appendLine("تو عامل FORGE AI LAB هستی. فارسی جواب بده.")
             appendLine("ابزارهای واقعی: مجوزها، اسپلش، SDK، رشته‌ها، فایل‌ها، جایگزینی متن، بازسازی.")
@@ -61,18 +58,29 @@ class AiAgent(
         return reply
     }
 
+    private fun stripQuotes(s: String): String {
+        var out = s.trim()
+        if (out.length >= 2) {
+            val a = out.first()
+            val b = out.last()
+            if ((a == '"' && b == '"') || (a == '\'' && b == '\'')) {
+                out = out.substring(1, out.length - 1)
+            }
+        }
+        return out
+    }
+
     private suspend fun runTools(text: String, info: ApkInfo?): String? {
         val t = text.trim()
         val lower = t.lowercase()
 
-        // REPLACE: جایگزینی متن X به Y  OR  replace X -> Y
         val replaceFa = Regex("""جایگزینی\s+متن\s+(.+?)\s+به\s+(.+)""", RegexOption.IGNORE_CASE)
         val replaceEn = Regex("""replace\s+(.+?)\s*(?:->|to)\s*(.+)""", RegexOption.IGNORE_CASE)
         val rm = replaceFa.find(t) ?: replaceEn.find(t)
         if (rm != null) {
             if (info == null) return "اول یک برنامه انتخاب کنید."
-            val old = rm.groupValues[1].trim().trim('"', ''')
-            val neu = rm.groupValues[2].trim().trim('"', ''')
+            val old = stripQuotes(rm.groupValues[1])
+            val neu = stripQuotes(rm.groupValues[2])
             return replaceInWorkspace(old, neu)
         }
 
@@ -96,7 +104,7 @@ class AiAgent(
             val nodes = workspace.listFiles("")
             return "ریشه استخراج‌شده (${nodes.size}):\n" +
                 nodes.take(40).joinToString("\n") { n ->
-                    if (n.isDirectory) "📁 ${n.name}/" else "📄 ${n.name} (${n.size}B)"
+                    if (n.isDirectory) "[DIR] ${n.name}/" else "[FILE] ${n.name} (${n.size}B)"
                 }
         }
 
