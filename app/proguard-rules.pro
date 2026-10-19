@@ -1,0 +1,5 @@
+-keepattributes *Annotation*, Signature, InnerClasses, EnclosingMethod
+-keep class com.forgeailab.app.data.model.** { *; }
+-keep class com.forgeailab.app.domain.apk.** { *; }
+-dontwarn okhttp3.**
+-dontwarn retrofit2.**
