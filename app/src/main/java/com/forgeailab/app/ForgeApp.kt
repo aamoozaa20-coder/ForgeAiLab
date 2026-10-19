@@ -4,6 +4,8 @@ import android.app.Application
 import com.forgeailab.app.data.local.SettingsStore
 import com.forgeailab.app.domain.ai.AiAgent
 import com.forgeailab.app.domain.apk.ApkAnalyzer
+import com.forgeailab.app.domain.apk.InstalledAppsLoader
+import com.forgeailab.app.domain.engine.ApkInstaller
 import com.forgeailab.app.domain.engine.RebuildEngine
 import com.forgeailab.app.domain.engine.SignManager
 import com.forgeailab.app.domain.workspace.WorkspaceManager
@@ -21,6 +23,10 @@ class ForgeApp : Application() {
         private set
     lateinit var settings: SettingsStore
         private set
+    lateinit var installedApps: InstalledAppsLoader
+        private set
+    lateinit var installer: ApkInstaller
+        private set
 
     override fun onCreate() {
         super.onCreate()
@@ -31,6 +37,8 @@ class ForgeApp : Application() {
         signManager = SignManager(this)
         aiAgent = AiAgent(workspace, analyzer, rebuildEngine, signManager)
         settings = SettingsStore(this)
+        installedApps = InstalledAppsLoader(this)
+        installer = ApkInstaller(this)
     }
 
     companion object {
