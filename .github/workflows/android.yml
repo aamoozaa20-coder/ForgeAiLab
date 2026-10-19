@@ -7,8 +7,11 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     timeout-minutes: 45
+    env:
+      ANDROID_HOME: ${{ github.workspace }}/android-sdk
+      ANDROID_SDK_ROOT: ${{ github.workspace }}/android-sdk
     steps:
       - uses: actions/checkout@v4
 
@@ -18,32 +21,33 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
-
-      - name: Accept licenses and install packages
+      - name: Install Android commandline tools
         run: |
-          yes | sdkmanager --licenses >/dev/null || true
-          sdkmanager "platform-tools" "platforms;android-35" "build-tools;34.0.0"
+          mkdir -p "$ANDROID_HOME/cmdline-tools"
+          curl -fsSL -o /tmp/cmdtools.zip https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip
+          unzip -q /tmp/cmdtools.zip -d "$ANDROID_HOME/cmdline-tools"
+          mv "$ANDROID_HOME/cmdline-tools/cmdline-tools" "$ANDROID_HOME/cmdline-tools/latest"
+          echo "$ANDROID_HOME/cmdline-tools/latest/bin" >> "$GITHUB_PATH"
+          echo "$ANDROID_HOME/platform-tools" >> "$GITHUB_PATH"
 
-      - name: Write local.properties
-        run: echo "sdk.dir=${ANDROID_HOME}" > local.properties
-
-      - name: Install Gradle 8.9
+      - name: Install SDK packages
         run: |
-          curl -fsSL -o /tmp/gradle-8.9-bin.zip https://services.gradle.org/distributions/gradle-8.9-bin.zip
-          sudo unzip -q /tmp/gradle-8.9-bin.zip -d /opt
-          echo "/opt/gradle-8.9/bin" >> $GITHUB_PATH
-          /opt/gradle-8.9/bin/gradle -v
+          yes | sdkmanager --sdk_root="$ANDROID_HOME" --licenses >/tmp/licenses.txt || true
+          sdkmanager --sdk_root="$ANDROID_HOME" "platform-tools" "platforms;android-35" "build-tools;34.0.0"
 
-      - name: Generate wrapper
+      - name: local.properties
+        run: echo "sdk.dir=$ANDROID_HOME" > local.properties
+
+      - name: Install Gradle and generate wrapper
         run: |
-          /opt/gradle-8.9/bin/gradle wrapper --gradle-version 8.9
+          curl -fsSL -o /tmp/gradle.zip https://services.gradle.org/distributions/gradle-8.9-bin.zip
+          unzip -q /tmp/gradle.zip -d /tmp
+          /tmp/gradle-8.9/bin/gradle wrapper --gradle-version 8.9
           chmod +x gradlew
           ls -la gradlew gradle/wrapper/
 
-      - name: Assemble debug APK
-        run: ./gradlew assembleDebug --no-daemon --stacktrace --info 2>&1 | tail -n 200
+      - name: Build APK
+        run: ./gradlew assembleDebug --no-daemon --stacktrace
 
       - name: Upload APK
         if: success()
