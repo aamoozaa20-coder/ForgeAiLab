@@ -44,10 +44,22 @@ jobs:
           unzip -q /tmp/gradle.zip -d /tmp
           /tmp/gradle-8.9/bin/gradle wrapper --gradle-version 8.9
           chmod +x gradlew
-          ls -la gradlew gradle/wrapper/
 
       - name: Build APK
-        run: ./gradlew assembleDebug --no-daemon --stacktrace
+        run: |
+          set +e
+          ./gradlew assembleDebug --no-daemon --stacktrace 2>&1 | tee build-output.txt
+          CODE=${PIPESTATUS[0]}
+          echo "===== ERRORS ====="
+          grep -E "^e: |error:|Unresolved reference|BUILD FAILED|What went wrong" build-output.txt || true
+          exit $CODE
+
+      - name: Upload build log
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-log
+          path: build-output.txt
 
       - name: Upload APK
         if: success()

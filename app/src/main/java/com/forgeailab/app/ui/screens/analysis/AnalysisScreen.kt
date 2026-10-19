@@ -47,20 +47,32 @@ fun AnalysisScreen() {
     Column(Modifier.fillMaxSize().padding(16.dp).verticalScroll(rememberScrollState())) {
         Text("تحلیل بسته APK", style = MaterialTheme.typography.headlineSmall)
         Spacer(Modifier.height(12.dp))
-        Button(onClick = { picker.launch(arrayOf("application/vnd.android.package-archive", "*/*")) }, enabled = !busy, modifier = Modifier.fillMaxWidth()) {
-            Icon(Icons.Default.FolderOpen, null); Spacer(Modifier.width(8.dp))
+        Button(
+            onClick = { picker.launch(arrayOf("application/vnd.android.package-archive", "*/*")) },
+            enabled = !busy,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Icon(Icons.Filled.FolderOpen, contentDescription = null)
+            Spacer(Modifier.width(8.dp))
             Text(if (busy) "در حال تحلیل…" else "انتخاب فایل APK")
         }
-        progress?.let { (msg, p) -> LinearProgressIndicator(progress = { p }, modifier = Modifier.fillMaxWidth()); Text(msg) }
+        progress?.let { (msg, p) ->
+            LinearProgressIndicator(progress = { p }, modifier = Modifier.fillMaxWidth())
+            Text(msg)
+        }
         error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
         val info = project?.apkInfo
         if (info != null) {
             Spacer(Modifier.height(16.dp))
             listOf(
-                "پکیج" to info.packageName, "نسخه" to "${info.versionName} (${info.versionCode})",
-                "SDK" to "min=${info.minSdk} target=${info.targetSdk}", "حجم" to "${info.fileSize}",
-                "SHA-256" to info.sha256, "مجوزها" to "${info.permissions.size}",
-                "Activities" to "${info.activities.size}", "Services" to "${info.services.size}",
+                "پکیج" to info.packageName,
+                "نسخه" to "${info.versionName} (${info.versionCode})",
+                "SDK" to "min=${info.minSdk} target=${info.targetSdk}",
+                "حجم" to "${info.fileSize}",
+                "SHA-256" to info.sha256,
+                "مجوزها" to "${info.permissions.size}",
+                "Activities" to "${info.activities.size}",
+                "Services" to "${info.services.size}",
                 "SDKها" to info.knownSdks.joinToString { it.name }.ifBlank { "—" }
             ).forEach { (t, v) ->
                 Card(Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
