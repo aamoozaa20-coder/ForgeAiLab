@@ -21,16 +21,47 @@ class GeminiClient {
     private val gson = Gson()
     private val jsonMedia = "application/json; charset=utf-8".toMediaType()
 
+    /** Try newest models first; fall back automatically. */
+    private val models = listOf(
+        "gemini-2.5-flash",
+        "gemini-2.0-flash",
+        "gemini-2.0-flash-001",
+        "gemini-1.5-flash",
+        "gemini-1.5-flash-latest",
+        "gemini-pro"
+    )
+
     suspend fun chat(
         apiKey: String,
         systemPrompt: String,
         userMessage: String,
-        model: String = "gemini-2.0-flash"
+        model: String? = null
     ): Result<String> = withContext(Dispatchers.IO) {
         if (apiKey.isBlank()) {
             return@withContext Result.failure(IllegalStateException("API key not set"))
         }
-        try {
+        val tryModels = if (model != null) listOf(model) + models else models
+        var lastError: Exception? = null
+        for (m in tryModels.distinct()) {
+            val r = callModel(apiKey, m, systemPrompt, userMessage)
+            if (r.isSuccess) return@withContext r
+            lastError = r.exceptionOrNull() as? Exception ?: Exception(r.exceptionOrNull()?.message)
+            val msg = lastError?.message.orEmpty()
+            // only retry on 404 / model not found
+            if (!msg.contains("404") && !msg.contains("not found", true) && !msg.contains("no longer available", true)) {
+                return@withContext r
+            }
+        }
+        Result.failure(lastError ?: Exception("همه مدل‌های Gemini ناموفق بودند"))
+    }
+
+    private fun callModel(
+        apiKey: String,
+        model: String,
+        systemPrompt: String,
+        userMessage: String
+    ): Result<String> {
+        return try {
             val body = JsonObject().apply {
                 add("contents", gson.toJsonTree(listOf(
                     mapOf(
@@ -39,7 +70,7 @@ class GeminiClient {
                     )
                 )))
                 add("generationConfig", gson.toJsonTree(mapOf(
-                    "temperature" to 0.4,
+                    "temperature" to 0.3,
                     "maxOutputTokens" to 4096
                 )))
             }
@@ -50,13 +81,13 @@ class GeminiClient {
             client.newCall(request).execute().use { response ->
                 val text = response.body?.string().orEmpty()
                 if (!response.isSuccessful) {
-                    return@withContext Result.failure(Exception("Gemini error (${response.code}): ${text.take(300)}"))
+                    return Result.failure(Exception("Gemini ($model) ${response.code}: ${text.take(400)}"))
                 }
                 val root = gson.fromJson(text, JsonObject::class.java)
                 val content = root.getAsJsonArray("candidates")?.get(0)?.asJsonObject
                     ?.getAsJsonObject("content")?.getAsJsonArray("parts")?.get(0)?.asJsonObject
                     ?.get("text")?.asString
-                    ?: return@withContext Result.failure(Exception("Empty Gemini response"))
+                    ?: return Result.failure(Exception("Empty Gemini response ($model)"))
                 Result.success(content)
             }
         } catch (e: Exception) {
