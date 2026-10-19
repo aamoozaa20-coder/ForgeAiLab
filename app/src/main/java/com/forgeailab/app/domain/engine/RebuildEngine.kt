@@ -9,9 +9,15 @@ import kotlinx.coroutines.withContext
 import java.io.File
 import java.util.zip.ZipFile
 
-class RebuildEngine(private val workspace: WorkspaceManager) {
+class RebuildEngine(
+    private val workspace: WorkspaceManager,
+    private val signManager: SignManager? = null
+) {
 
-    suspend fun rebuild(onStep: (RebuildStep) -> Unit = {}): RebuildResult = withContext(Dispatchers.IO) {
+    suspend fun rebuild(
+        sign: Boolean = true,
+        onStep: (RebuildStep) -> Unit = {}
+    ): RebuildResult = withContext(Dispatchers.IO) {
         val steps = mutableListOf<RebuildStep>()
         val errors = mutableListOf<String>()
         val project = workspace.current.value
@@ -23,15 +29,10 @@ class RebuildEngine(private val workspace: WorkspaceManager) {
             return try {
                 block()
                 val step = RebuildStep(name, StepStatus.SUCCESS, durationMs = System.currentTimeMillis() - start)
-                steps.add(step)
-                onStep(step)
-                true
+                steps.add(step); onStep(step); true
             } catch (e: Exception) {
                 val step = RebuildStep(name, StepStatus.FAILED, e.message ?: "خطا", System.currentTimeMillis() - start)
-                steps.add(step)
-                errors.add("$name: ${e.message}")
-                onStep(step)
-                false
+                steps.add(step); errors.add("$name: ${e.message}"); onStep(step); false
             }
         }
 
@@ -42,13 +43,13 @@ class RebuildEngine(private val workspace: WorkspaceManager) {
         }) return@withContext RebuildResult(false, steps = steps, errors = errors)
 
         if (!runStep("آماده‌سازی فضای کاری") {
-            require(File(project.workDir, "extracted").isDirectory)
+            require(File(project.workDir, "extracted").isDirectory) { "پوشه extracted نیست" }
         }) return@withContext RebuildResult(false, steps = steps, errors = errors)
 
         var output: File? = null
         if (!runStep("بسته‌بندی مجدد") {
             output = workspace.packageWorkingCopy("rebuild_${System.currentTimeMillis()}.apk")
-            require(output != null && output!!.exists())
+            require(output != null && output!!.exists()) { "خروجی ساخته نشد" }
         }) return@withContext RebuildResult(false, steps = steps, errors = errors)
 
         if (!runStep("بررسی خروجی") {
@@ -57,6 +58,26 @@ class RebuildEngine(private val workspace: WorkspaceManager) {
             }
         }) return@withContext RebuildResult(false, outputPath = output?.absolutePath, steps = steps, errors = errors)
 
-        RebuildResult(success = errors.isEmpty(), outputPath = output?.absolutePath, steps = steps, errors = errors)
+        var signed = false
+        var finalPath = output!!.absolutePath
+        if (sign && signManager != null) {
+            if (!runStep("امضای APK") {
+                val signedFile = File(output!!.parentFile, output!!.nameWithoutExtension + "-signed.apk")
+                val sr = signManager.signApk(output!!, signedFile)
+                require(sr.success && sr.outputPath != null) { sr.message }
+                finalPath = sr.outputPath!!
+                signed = true
+            }) {
+                // signing failed but keep unsigned path
+            }
+        }
+
+        RebuildResult(
+            success = errors.isEmpty() || signed || output != null,
+            outputPath = finalPath,
+            steps = steps,
+            errors = errors,
+            signed = signed
+        )
     }
 }

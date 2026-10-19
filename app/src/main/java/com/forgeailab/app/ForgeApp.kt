@@ -33,8 +33,8 @@ class ForgeApp : Application() {
         instance = this
         workspace = WorkspaceManager(this)
         analyzer = ApkAnalyzer()
-        rebuildEngine = RebuildEngine(workspace)
         signManager = SignManager(this)
+        rebuildEngine = RebuildEngine(workspace, signManager)
         aiAgent = AiAgent(workspace, analyzer, rebuildEngine, signManager)
         settings = SettingsStore(this)
         installedApps = InstalledAppsLoader(this)
