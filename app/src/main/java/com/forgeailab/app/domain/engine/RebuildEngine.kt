@@ -17,16 +17,21 @@ class RebuildEngine(private val workspace: WorkspaceManager) {
         val project = workspace.current.value
             ?: return@withContext RebuildResult(false, errors = listOf("هیچ پروژه‌ای باز نیست"))
 
-        fun runStep(name: String, block: () -> Unit): Boolean {
+        suspend fun runStep(name: String, block: suspend () -> Unit): Boolean {
             val start = System.currentTimeMillis()
             onStep(RebuildStep(name, StepStatus.RUNNING))
             return try {
                 block()
                 val step = RebuildStep(name, StepStatus.SUCCESS, durationMs = System.currentTimeMillis() - start)
-                steps.add(step); onStep(step); true
+                steps.add(step)
+                onStep(step)
+                true
             } catch (e: Exception) {
                 val step = RebuildStep(name, StepStatus.FAILED, e.message ?: "خطا", System.currentTimeMillis() - start)
-                steps.add(step); errors.add("$name: ${e.message}"); onStep(step); false
+                steps.add(step)
+                errors.add("$name: ${e.message}")
+                onStep(step)
+                false
             }
         }
 
