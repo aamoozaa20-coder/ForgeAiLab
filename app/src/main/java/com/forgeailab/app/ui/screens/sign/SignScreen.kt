@@ -22,20 +22,70 @@ fun SignScreen() {
     val scope = rememberCoroutineScope()
     val instructions = remember { ForgeApp.instance.signManager.signingInstructions() }
 
-    // Discover existing rebuild outputs
     LaunchedEffect(project) {
         val dir = project?.workDir?.let { File(it) } ?: return@LaunchedEffect
-        rebuiltPath = dir.listFiles()?.filter { it.name.startsWith("rebuild_") && it.name.endsWith(".apk") }
-            ?.maxByOrNull { it.lastModified() }?.absolutePath
+        rebuiltPath = dir.listFiles()
+            ?.filter { it.extension == "apk" && (it.name.contains("signed") || it.name.startsWith("rebuild_")) }
+            ?.maxByOrNull { it.lastModified() }
+            ?.absolutePath
     }
 
     Column(Modifier.fillMaxSize().padding(16.dp).verticalScroll(rememberScrollState())) {
-        Text("مرکز امضا و نصب", style = MaterialTheme.typography.headlineSmall)
+        Text("بازسازی، امضا و نصب", style = MaterialTheme.typography.headlineSmall)
+        Spacer(Modifier.height(8.dp))
+        if (project?.apkInfo != null) {
+            Text(
+                "پروژه: ${project!!.apkInfo!!.packageName}",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.primary
+            )
+        } else {
+            Text("ابتدا از صفحه تحلیل یک برنامه انتخاب کنید.", color = MaterialTheme.colorScheme.error)
+        }
         Spacer(Modifier.height(12.dp))
 
         Button(
             onClick = {
-                val path = project?.originalApkPath ?: return@Button
+                scope.launch {
+                    busy = true
+                    message = "در حال بازسازی و امضا…"
+                    val result = ForgeApp.instance.rebuildEngine.rebuild(sign = true)
+                    if (result.outputPath != null) {
+                        rebuiltPath = result.outputPath
+                        message = buildString {
+                            append(if (result.signed) "آماده نصب (امضا شده).\n" else "ساخته شد.\n")
+                            append(result.outputPath)
+                            if (result.errors.isNotEmpty()) append("\n" + result.errors.joinToString())
+                            append("\n\nقبل از نصب، برنامه اصلی را حذف کنید.")
+                        }
+                    } else {
+                        message = "ناموفق: " + result.errors.joinToString()
+                    }
+                    busy = false
+                }
+            },
+            enabled = project != null && !busy,
+            modifier = Modifier.fillMaxWidth()
+        ) { Text(if (busy) "صبر کنید…" else "۱) بازسازی + امضا") }
+
+        Spacer(Modifier.height(8.dp))
+        Button(
+            onClick = {
+                val path = rebuiltPath ?: return@Button
+                val r = ForgeApp.instance.installer.install(File(path))
+                message = if (r.isSuccess)
+                    "پنجره نصب باز شد. اگر خطای امضا دیدید، اول برنامه اصلی را Uninstall کنید."
+                else
+                    "خطا: ${r.exceptionOrNull()?.message}"
+            },
+            enabled = rebuiltPath != null && !busy,
+            modifier = Modifier.fillMaxWidth()
+        ) { Text("۲) نصب نسخه اصلاح‌شده") }
+
+        Spacer(Modifier.height(8.dp))
+        OutlinedButton(
+            onClick = {
+                val path = project?.originalApkPath ?: return@OutlinedButton
                 scope.launch {
                     busy = true
                     val result = ForgeApp.instance.signManager.inspectSignature(File(path))
@@ -46,46 +96,17 @@ fun SignScreen() {
             },
             enabled = project != null && !busy,
             modifier = Modifier.fillMaxWidth()
-        ) { Text(if (busy) "بررسی…" else "بررسی امضای APK اصلی") }
-
-        Spacer(Modifier.height(8.dp))
-        Button(
-            onClick = {
-                scope.launch {
-                    busy = true; message = "در حال بازسازی…"
-                    val result = ForgeApp.instance.rebuildEngine.rebuild()
-                    if (result.success && result.outputPath != null) {
-                        rebuiltPath = result.outputPath
-                        message = "بازسازی موفق: ${result.outputPath}"
-                    } else {
-                        message = "ناموفق: " + result.errors.joinToString()
-                    }
-                    busy = false
-                }
-            },
-            enabled = project != null && !busy,
-            modifier = Modifier.fillMaxWidth()
-        ) { Text("بازسازی APK اصلاح‌شده") }
-
-        Spacer(Modifier.height(8.dp))
-        Button(
-            onClick = {
-                val path = rebuiltPath ?: return@Button
-                val r = ForgeApp.instance.installer.install(File(path))
-                message = if (r.isSuccess) "پنجره نصب باز شد. تأیید کنید."
-                else "خطا: ${r.exceptionOrNull()?.message}"
-            },
-            enabled = rebuiltPath != null && !busy,
-            modifier = Modifier.fillMaxWidth()
-        ) { Text("نصب نسخه اصلاح‌شده") }
+        ) { Text("بررسی امضای APK اصلی") }
 
         if (rebuiltPath != null) {
             Spacer(Modifier.height(8.dp))
-            Text("آخرین خروجی: $rebuiltPath", style = MaterialTheme.typography.bodySmall)
+            Text("فایل خروجی:\n$rebuiltPath", style = MaterialTheme.typography.bodySmall)
         }
         if (message.isNotBlank()) {
             Spacer(Modifier.height(8.dp))
-            Text(message)
+            Card(Modifier.fillMaxWidth()) {
+                Text(message, Modifier.padding(12.dp))
+            }
         }
         if (certInfo.isNotBlank()) {
             Spacer(Modifier.height(8.dp))
@@ -97,13 +118,12 @@ fun SignScreen() {
         Text("راهنما", style = MaterialTheme.typography.titleMedium)
         Card(Modifier.fillMaxWidth()) {
             Text(
-                """1) در صفحه تحلیل، برنامه نصب‌شده را انتخاب کنید.
-2) در دستیار AI دستور بدهید مثلاً:
-   جایگزینی متن Hello به درود
-3) بگویید بازسازی
-4) اینجا «نصب نسخه اصلاح‌شده» را بزنید.
-
-توجه: برنامه‌های سیستم‌امضا ممکن است بدون امضای اصلی نصب نشوند. برای تست از اپ‌های کاربر استفاده کنید.
+                """مسیر کامل:
+1) تحلیل → انتخاب برنامه نصب‌شده
+2) منابع → دیدن فایل‌های استخراج‌شده
+3) دستیار AI → مثلاً:
+   جایگزینی متن Settings به تنظیمات
+4) اینجا: بازسازی + امضا → نصب
 
 $instructions""".trimIndent(),
                 Modifier.padding(12.dp),
